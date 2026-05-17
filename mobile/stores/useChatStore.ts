@@ -14,14 +14,17 @@ export interface ChatMessage {
 interface ChatState {
   messages: ChatMessage[];
   isThinking: boolean;
+  lastSuggestions: string[];
   addMessage: (role: ChatRole, content: string) => ChatMessage;
   setThinking: (thinking: boolean) => void;
+  setLastSuggestions: (suggestions: string[]) => void;
   clear: () => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
   messages: [],
   isThinking: false,
+  lastSuggestions: [],
   addMessage: (role, content) => {
     const message: ChatMessage = {
       id: uuidv4(),
@@ -33,5 +36,6 @@ export const useChatStore = create<ChatState>((set) => ({
     return message;
   },
   setThinking: (thinking) => set({ isThinking: thinking }),
-  clear: () => set({ messages: [], isThinking: false }),
+  setLastSuggestions: (suggestions) => set({ lastSuggestions: suggestions }),
+  clear: () => set({ messages: [], isThinking: false, lastSuggestions: [] }),
 }));

@@ -1,4 +1,5 @@
 // mobile/components/ChatSheet.tsx
+// Replaced by app/chat.tsx route. Kept for reference.
 import { useCallback, useMemo, useRef, useEffect } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import BottomSheet, {

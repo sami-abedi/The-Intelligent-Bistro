@@ -5,11 +5,12 @@ import {
   Text,
   Pressable,
   FlatList,
+  ScrollView,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { useChatStore, ChatMessage } from '../stores/useChatStore';
 import { useCartStore } from '../stores/cartStore';
@@ -27,11 +28,14 @@ const SUGGESTED_PROMPTS = [
 
 export default function ChatScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const messages = useChatStore((s) => s.messages);
   const isThinking = useChatStore((s) => s.isThinking);
+  const lastSuggestions = useChatStore((s) => s.lastSuggestions);
   const addMessage = useChatStore((s) => s.addMessage);
   const setThinking = useChatStore((s) => s.setThinking);
+  const setLastSuggestions = useChatStore((s) => s.setLastSuggestions);
 
   const cart = useCartStore((s) => s.items);
   const applyAction = useCartStore((s) => s.applyAction);
@@ -50,6 +54,7 @@ export default function ChatScreen() {
   }, [messages.length, isThinking]);
 
   const handleSend = async (text: string) => {
+    setLastSuggestions([]);
     addMessage('user', text);
     setThinking(true);
 
@@ -67,6 +72,8 @@ export default function ChatScreen() {
       if (response.reply) {
         addMessage('assistant', response.reply);
       }
+
+      setLastSuggestions(response.suggestions ?? []);
     } catch (err) {
       addMessage(
         'assistant',
@@ -83,23 +90,23 @@ export default function ChatScreen() {
   );
 
   return (
-    <SafeAreaView className="flex-1 bg-cream">
-      <View className="flex-row items-center justify-between border-b border-border px-5 py-3">
-        <Pressable onPress={() => router.back()}>
-          <Text className="text-base text-charcoal">Close</Text>
-        </Pressable>
-        <View className="items-center">
-          <Text className="font-serif text-base text-charcoal">Remy</Text>
-          <Text className="text-xs text-muted">Your host at Bistro Lumière</Text>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: '#FAF7F2' }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 10 : 0}
+    >
+      <SafeAreaView className="flex-1 bg-cream" edges={['bottom']}>
+        <View className="flex-row items-center justify-between border-b border-border px-5 py-3">
+          <Pressable onPress={() => router.back()} hitSlop={10}>
+            <Text className="text-base text-charcoal">Close</Text>
+          </Pressable>
+          <View className="items-center">
+            <Text className="font-serif text-base text-charcoal">Remy</Text>
+            <Text className="text-xs text-muted">Your host at Bistro Lumière</Text>
+          </View>
+          <View className="w-12" />
         </View>
-        <View className="w-12" />
-      </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-      >
         {messages.length === 0 ? (
           <View className="flex-1 px-5 py-6">
             <Text className="mb-2 text-sm text-muted">Try saying:</Text>
@@ -123,11 +130,58 @@ export default function ChatScreen() {
             keyExtractor={(m) => m.id}
             contentContainerStyle={{ paddingHorizontal: 20, paddingVertical: 16 }}
             ListFooterComponent={isThinking ? <ThinkingIndicator /> : null}
+            keyboardShouldPersistTaps="handled"
           />
         )}
 
+        {lastSuggestions.length > 0 && !isThinking && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{
+              paddingHorizontal: 16,
+              paddingVertical: 8,
+              gap: 8,
+              alignItems: 'center',
+            }}
+            style={{ flexGrow: 0 }}
+          >
+            {lastSuggestions.map((suggestion) => (
+              <Pressable
+                key={suggestion}
+                onPress={() => handleSend(suggestion)}
+                style={{
+                  height: 40,
+                  paddingHorizontal: 14,
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor: '#C65D3F',
+                  backgroundColor: '#FFFFFF',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+              >
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    fontSize: 13,
+                    color: '#C65D3F',
+                    fontWeight: '500',
+                    textAlign: 'center',
+                    textAlignVertical: 'center',
+                    includeFontPadding: false,
+                  }}
+                >
+                  {suggestion}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        )}
+
         <ChatInput onSend={handleSend} disabled={isThinking} />
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }

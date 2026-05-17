@@ -51,4 +51,5 @@ export type CartAction =
 export interface ChatResponse {
   reply: string;
   actions: CartAction[];
+  suggestions: string[];
 }

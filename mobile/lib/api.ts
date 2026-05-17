@@ -15,6 +15,7 @@ export async function fetchMenu(): Promise<MenuItem[]> {
 export interface ChatResponse {
   reply: string;
   actions: CartAction[];
+  suggestions: string[];
 }
 
 export async function sendChat(
