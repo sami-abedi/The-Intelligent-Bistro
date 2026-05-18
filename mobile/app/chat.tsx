@@ -1,16 +1,25 @@
 // app/chat.tsx
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   Pressable,
   FlatList,
   ScrollView,
-  KeyboardAvoidingView,
-  Platform,
+  useWindowDimensions,
+  Keyboard,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+  runOnJS,
+  useAnimatedKeyboard,
+  useAnimatedReaction,
+} from 'react-native-reanimated';
 import { useQuery } from '@tanstack/react-query';
 import { useChatStore, ChatMessage } from '../stores/useChatStore';
 import { useCartStore } from '../stores/cartStore';
@@ -26,9 +35,44 @@ const SUGGESTED_PROMPTS = [
   'Add a large lemonade and fries',
 ];
 
+// Tappable backdrop area BELOW the top safe-area inset, in pixels.
+// Must stay non-trivial on iOS: anything inside `insets.top` (notch / Dynamic
+// Island) is a system gesture zone where touches don't reach the app, so the
+// sheet's max height is capped at `screenHeight - insets.top - this`.
+const BACKDROP_MIN_TAP_AREA = 40;
+// Clearance between the input bar and the keyboard top.
+const INPUT_KEYBOARD_GAP = 8;
+
 export default function ChatScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { height: screenHeight } = useWindowDimensions();
+
+  // 75% of the screen, in pixels. Static — keyboard handling shifts/grows
+  // the sheet via animated style instead of recomputing this.
+  const baseSheetHeight = Math.round(screenHeight * 0.75);
+
+  // Absolute ceiling for the sheet's grown height when the keyboard is up.
+  // Subtracting `insets.top` keeps the backdrop's tappable region clear of the
+  // iOS notch/Dynamic Island, where touches are reserved for system gestures.
+  const maxSheetHeight = screenHeight - insets.top - BACKDROP_MIN_TAP_AREA;
+
+  // Reanimated's keyboard hook — hooks the native IME callbacks directly
+  // (UIKit notifications on iOS, WindowInsetsAnimation on Android), so it
+  // doesn't rely on the JS Keyboard module that misreports height on MIUI.
+  const keyboard = useAnimatedKeyboard();
+
+  // JS-side mirror of keyboard open/closed, for use in onPress handlers and
+  // non-animated style props. Updated only on transitions to avoid render churn.
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  useAnimatedReaction(
+    () => keyboard.height.value > 0,
+    (open, prev) => {
+      if (open !== prev) {
+        runOnJS(setIsKeyboardOpen)(open);
+      }
+    }
+  );
 
   const messages = useChatStore((s) => s.messages);
   const isThinking = useChatStore((s) => s.isThinking);
@@ -46,6 +90,54 @@ export default function ChatScreen() {
   });
 
   const listRef = useRef<FlatList<ChatMessage>>(null);
+
+  // Drag-to-dismiss animation state
+  const translateY = useSharedValue(0);
+
+  const closeSheet = useCallback(() => {
+    router.back();
+  }, [router]);
+
+  const dismissKeyboard = useCallback(() => {
+    Keyboard.dismiss();
+  }, []);
+
+  const panGesture = Gesture.Pan()
+    .onUpdate((e) => {
+      'worklet';
+      if (e.translationY > 0) {
+        translateY.value = e.translationY;
+      }
+    })
+    .onEnd((e) => {
+      'worklet';
+      if (e.translationY > 100 || e.velocityY > 500) {
+        const kb = keyboard.height.value;
+        const currentHeight =
+          kb > 0 ? Math.min(maxSheetHeight, baseSheetHeight + kb) : baseSheetHeight;
+        translateY.value = withTiming(currentHeight, { duration: 200 }, () => {
+          runOnJS(closeSheet)();
+        });
+      } else {
+        translateY.value = withTiming(0, { duration: 200 });
+      }
+    });
+
+  // The sheet stays bottom-anchored. When the keyboard is up we GROW it by
+  // the keyboard height (capped so a backdrop sliver remains visible) and add
+  // matching bottom padding so the input bar lands `INPUT_KEYBOARD_GAP` px
+  // above the keyboard. Driven by a shared value so it co-animates smoothly
+  // with the drag gesture.
+  const animatedSheetStyle = useAnimatedStyle(() => {
+    const kb = keyboard.height.value;
+    const grownHeight =
+      kb > 0 ? Math.min(maxSheetHeight, baseSheetHeight + kb) : baseSheetHeight;
+    return {
+      height: grownHeight,
+      paddingBottom: kb > 0 ? kb + INPUT_KEYBOARD_GAP : 0,
+      transform: [{ translateY: translateY.value }],
+    };
+  });
 
   useEffect(() => {
     if (messages.length > 0 || isThinking) {
@@ -90,23 +182,93 @@ export default function ChatScreen() {
   );
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: '#FAF7F2' }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 10 : 0}
-    >
-      <SafeAreaView className="flex-1 bg-cream" edges={['bottom']}>
-        <View className="flex-row items-center justify-between border-b border-border px-5 py-3">
-          <Pressable onPress={() => router.back()} hitSlop={10}>
-            <Text className="text-base text-charcoal">Close</Text>
-          </Pressable>
-          <View className="items-center">
-            <Text className="font-serif text-base text-charcoal">Remy</Text>
-            <Text className="text-xs text-muted">Your host at Bistro Lumière</Text>
-          </View>
-          <View className="w-12" />
-        </View>
+    <View style={{ flex: 1, backgroundColor: 'transparent' }}>
+      {/* Backdrop — tap to dismiss keyboard first, then close on second tap */}
+      <Pressable
+        onPress={isKeyboardOpen ? dismissKeyboard : closeSheet}
+        style={{
+          flex: 1,
+          backgroundColor: 'rgba(0, 0, 0, 0.25)',
+        }}
+      />
 
+      {/* Sheet — bottom-anchored. Height + paddingBottom live in animatedSheetStyle
+          so they co-animate with the keyboard and the drag gesture. */}
+      <Animated.View
+        style={[
+          {
+            backgroundColor: '#FAF7F2',
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            overflow: 'hidden',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: -2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 8,
+            elevation: 8,
+          },
+          animatedSheetStyle,
+        ]}
+      >
+        {/* Tap-to-dismiss-keyboard wrapper. Child Pressables (close button,
+            chips, suggested prompts) and the TextInput claim the responder
+            first via RN's bubbling model, so this only fires on "empty" taps
+            (header, message background, chip row gaps). Keyboard.dismiss is a
+            no-op when the keyboard is closed, so no conditional needed. */}
+        <Pressable onPress={dismissKeyboard} style={{ flex: 1 }}>
+        {/* Drag handle + header — entire zone is gesture-active */}
+        <GestureDetector gesture={panGesture}>
+          <View>
+            {/* Drag handle */}
+            <View style={{ alignItems: 'center', paddingTop: 8, paddingBottom: 4 }}>
+              <View
+                style={{
+                  width: 40,
+                  height: 4,
+                  borderRadius: 2,
+                  backgroundColor: '#D4CCBF',
+                }}
+              />
+            </View>
+
+            {/* Header row */}
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                paddingHorizontal: 20,
+                paddingVertical: 12,
+                borderBottomWidth: 1,
+                borderBottomColor: '#E5DFD5',
+              }}
+            >
+              <View style={{ width: 32 }} />
+              <View style={{ alignItems: 'center', flex: 1 }}>
+                <Text className="font-serif text-base text-charcoal">Remy</Text>
+                <Text className="text-xs text-muted">
+                  Your host at Bistro Lumière
+                </Text>
+              </View>
+              <Pressable
+                onPress={closeSheet}
+                hitSlop={10}
+                style={{
+                  width: 32,
+                  height: 32,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Text style={{ fontSize: 20, color: '#9B9183', lineHeight: 22 }}>
+                  ×
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </GestureDetector>
+
+        {/* Body */}
         {messages.length === 0 ? (
           <View className="flex-1 px-5 py-6">
             <Text className="mb-2 text-sm text-muted">Try saying:</Text>
@@ -131,16 +293,19 @@ export default function ChatScreen() {
             contentContainerStyle={{ paddingHorizontal: 20, paddingVertical: 16 }}
             ListFooterComponent={isThinking ? <ThinkingIndicator /> : null}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
           />
         )}
 
+        {/* Suggestion chips */}
         {lastSuggestions.length > 0 && !isThinking && (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{
-              paddingHorizontal: 16,
+              paddingLeft: 16,
+              paddingRight: 24,
               paddingVertical: 8,
               gap: 8,
               alignItems: 'center',
@@ -180,8 +345,14 @@ export default function ChatScreen() {
           </ScrollView>
         )}
 
-        <ChatInput onSend={handleSend} disabled={isThinking} />
-      </SafeAreaView>
-    </KeyboardAvoidingView>
+        {/* Input — bottom safe-area padding only when keyboard is closed.
+            When open, the sheet's animated paddingBottom places the input
+            INPUT_KEYBOARD_GAP px above the keyboard. */}
+        <View style={{ paddingBottom: isKeyboardOpen ? 0 : insets.bottom }}>
+          <ChatInput onSend={handleSend} disabled={isThinking} />
+        </View>
+        </Pressable>
+      </Animated.View>
+    </View>
   );
 }

@@ -30,7 +30,14 @@ export default function RootLayout() {
             <Stack.Screen name="index" />
             <Stack.Screen name="cart" options={{ presentation: 'modal' }} />
             <Stack.Screen name="customize" options={{ presentation: 'modal' }} />
-            <Stack.Screen name="chat" options={{ presentation: 'modal' }} />
+            <Stack.Screen
+              name="chat"
+              options={{
+                presentation: 'transparentModal',
+                animation: 'slide_from_bottom',
+                contentStyle: { backgroundColor: 'transparent' },
+              }}
+            />
           </Stack>
         </QueryClientProvider>
       </SafeAreaProvider>
