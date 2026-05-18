@@ -2,7 +2,7 @@
 import { useState, useMemo } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { fetchMenu } from '../lib/api';
 import { useCartStore } from '../stores/cartStore';
@@ -11,6 +11,7 @@ import { CartItemModifier } from '../types';
 export default function CustomizeScreen() {
   const { itemId } = useLocalSearchParams<{ itemId: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { data: menu } = useQuery({ queryKey: ['menu'], queryFn: fetchMenu });
   const addItem = useCartStore((s) => s.addItem);
 
@@ -119,10 +120,20 @@ export default function CustomizeScreen() {
         </View>
       </ScrollView>
 
-      <View className="absolute bottom-0 left-0 right-0 border-t border-border bg-cream px-5 py-4">
+      <View
+        className="absolute bottom-0 left-0 right-0 border-t border-border bg-cream px-5 pt-4"
+        style={{ paddingBottom: insets.bottom + 16 }}
+      >
         <Pressable
           onPress={handleAdd}
           className="flex-row items-center justify-between rounded-2xl bg-terracotta px-5 py-4"
+          style={{
+            shadowColor: '#000',
+            shadowOpacity: 0.15,
+            shadowRadius: 6,
+            shadowOffset: { width: 0, height: 2 },
+            elevation: 4,
+          }}
         >
           <Text className="text-cream font-semibold">Add to cart</Text>
           <Text className="text-cream font-semibold">${total.toFixed(2)}</Text>

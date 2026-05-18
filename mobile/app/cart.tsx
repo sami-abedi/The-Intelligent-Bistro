@@ -1,5 +1,5 @@
 // app/cart.tsx
-import { View, Text, Pressable, FlatList } from 'react-native';
+import { View, Text, Pressable, FlatList, Image, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
@@ -35,35 +35,58 @@ function CartLine({ line, menu }: { line: CartItem; menu: MenuItem[] }) {
 
   return (
     <View className="mb-3 rounded-2xl bg-white p-4">
-      <View className="flex-row items-start justify-between">
-        <View className="flex-1 pr-3">
-          <Text className="font-serif text-base text-charcoal">{item.name}</Text>
-          {modifierLabels.length > 0 && (
-            <Text className="mt-1 text-xs text-muted">{modifierLabels}</Text>
-          )}
-        </View>
-        <Text className="text-base font-semibold text-charcoal">${linePrice.toFixed(2)}</Text>
-      </View>
+      <View className="flex-row">
+        {item.imageUrl ? (
+          <Image
+            source={{ uri: item.imageUrl }}
+            style={{ width: 56, height: 56, borderRadius: 8 }}
+            resizeMode="cover"
+          />
+        ) : (
+          <View
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: 8,
+              backgroundColor: '#E5DFD5',
+            }}
+          />
+        )}
 
-      <View className="mt-3 flex-row items-center justify-between">
-        <View className="flex-row items-center">
-          <Pressable
-            onPress={() => updateQuantity(line.cartItemId, line.quantity - 1)}
-            className="h-8 w-8 items-center justify-center rounded-full bg-cream"
-          >
-            <Text className="text-charcoal">−</Text>
-          </Pressable>
-          <Text className="mx-4 text-charcoal">{line.quantity}</Text>
-          <Pressable
-            onPress={() => updateQuantity(line.cartItemId, line.quantity + 1)}
-            className="h-8 w-8 items-center justify-center rounded-full bg-cream"
-          >
-            <Text className="text-charcoal">+</Text>
-          </Pressable>
+        <View className="ml-3 flex-1">
+          <View className="flex-row items-start justify-between">
+            <View className="flex-1 pr-3">
+              <Text className="font-serif text-base text-charcoal">{item.name}</Text>
+              {modifierLabels.length > 0 && (
+                <Text className="mt-1 text-xs text-muted">{modifierLabels}</Text>
+              )}
+            </View>
+            <Text className="text-base font-semibold text-charcoal">
+              ${linePrice.toFixed(2)}
+            </Text>
+          </View>
+
+          <View className="mt-3 flex-row items-center justify-between">
+            <View className="flex-row items-center">
+              <Pressable
+                onPress={() => updateQuantity(line.cartItemId, line.quantity - 1)}
+                className="h-8 w-8 items-center justify-center rounded-full bg-cream"
+              >
+                <Text className="text-charcoal">−</Text>
+              </Pressable>
+              <Text className="mx-4 text-charcoal">{line.quantity}</Text>
+              <Pressable
+                onPress={() => updateQuantity(line.cartItemId, line.quantity + 1)}
+                className="h-8 w-8 items-center justify-center rounded-full bg-cream"
+              >
+                <Text className="text-charcoal">+</Text>
+              </Pressable>
+            </View>
+            <Pressable onPress={() => removeItem(line.cartItemId)}>
+              <Text className="text-xs text-muted">Remove</Text>
+            </Pressable>
+          </View>
         </View>
-        <Pressable onPress={() => removeItem(line.cartItemId)}>
-          <Text className="text-xs text-muted">Remove</Text>
-        </Pressable>
       </View>
     </View>
   );
@@ -78,6 +101,22 @@ export default function CartScreen() {
 
   const total = menu ? subtotal(menu) : 0;
 
+  const handlePlaceOrder = () => {
+    Alert.alert(
+      'Order placed!',
+      "Just kidding — checkout isn't part of this demo. Your cart will be cleared so you can keep exploring.",
+      [
+        {
+          text: 'OK',
+          onPress: () => {
+            clear();
+            router.back();
+          },
+        },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView className="flex-1 bg-cream">
       <View className="flex-row items-center justify-between px-5 py-3">
@@ -87,7 +126,7 @@ export default function CartScreen() {
         <Text className="font-serif text-base text-charcoal">Your Order</Text>
         {items.length > 0 ? (
           <Pressable onPress={clear}>
-            <Text className="text-xs text-muted">Clear</Text>
+            <Text className="text-xs text-muted">Remove all</Text>
           </Pressable>
         ) : (
           <View className="w-10" />
@@ -116,7 +155,17 @@ export default function CartScreen() {
                 ${total.toFixed(2)}
               </Text>
             </View>
-            <Pressable className="items-center rounded-2xl bg-charcoal px-5 py-4">
+            <Pressable
+              onPress={handlePlaceOrder}
+              className="items-center rounded-2xl bg-terracotta px-5 py-4"
+              style={{
+                shadowColor: '#000',
+                shadowOpacity: 0.15,
+                shadowRadius: 6,
+                shadowOffset: { width: 0, height: 2 },
+                elevation: 4,
+              }}
+            >
               <Text className="font-semibold text-cream">Place order</Text>
             </Pressable>
           </View>
