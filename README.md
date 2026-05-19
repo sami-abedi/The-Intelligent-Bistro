@@ -22,7 +22,7 @@ Customers can browse the menu, tap items into the cart, or talk to **Remy**, an 
 | UI | NativeWind v4 (Tailwind for RN) | Plus custom theme tokens (cream `#FAF7F2`, terracotta `#C65D3F`, charcoal `#2C2A26`) |
 | State | Zustand | One cart store, one chat store |
 | Server data | TanStack Query | Used for `/menu` fetching with caching |
-| Animations | `react-native-reanimated` v4 + `react-native-gesture-handler` | Drag-to-dismiss, scale-on-press, animated chat sheet |
+| Animations | `react-native-reanimated` v4 + `react-native-gesture-handler` | Drag-to-dismiss, scale-on-press, animated chat and detail sheets |
 | Backend | Node.js + Express + TypeScript | Single process, two routes |
 | AI | Anthropic Claude API with **tool use** | Four tools modeling the cart |
 | Markdown rendering | `react-native-markdown-display` | For Remy's replies |
@@ -158,6 +158,7 @@ Scan the QR code with Expo Go (Android) or the Camera app (iOS).
 ### 5. Verify
 
 - Tap the chat FAB. Type `I'd like two spicy chicken sandwiches`. Remy should respond and the cart should populate. The cart count appears at the bottom of the menu.
+- Tap a menu card to see the detail sheet with ingredients and nutrition.
 - Tap "View cart". You should see line items with images, and a "Place order" button.
 
 ---
@@ -170,20 +171,21 @@ The-Intelligent-Bistro/
 │   ├── src/
 │   │   ├── index.ts                 # Express app, /menu and /chat routes
 │   │   ├── chat.ts                  # Claude tool-use loop, system prompt
-│   │   ├── menu.ts                  # Static menu data
+│   │   ├── menu.ts                  # Static menu data (with calories, ingredients, macros)
 │   │   └── types.ts                 # Shared types
 │   ├── .env.example
 │   └── package.json
 │
 ├── mobile/                          # React Native (Expo) app
 │   ├── app/                         # expo-router routes
-│   │   ├── _layout.tsx              # Root Stack with chat/cart/customize routes
+│   │   ├── _layout.tsx              # Root Stack with chat/cart/customize/item-detail routes
 │   │   ├── index.tsx                # Menu screen
 │   │   ├── chat.tsx                 # 75% bottom-sheet chat (transparentModal)
 │   │   ├── cart.tsx                 # Cart modal
-│   │   └── customize.tsx            # Item customization modal
+│   │   ├── customize.tsx            # Item customization modal
+│   │   └── item-detail.tsx          # 75% bottom-sheet item detail with nutrition
 │   ├── components/
-│   │   ├── MenuItemCard.tsx         # Menu item with + button
+│   │   ├── MenuItemCard.tsx         # Menu item with + button (and tap-for-detail)
 │   │   ├── ChatFAB.tsx              # Floating chat trigger
 │   │   ├── ChatBubble.tsx           # Message rendering with Markdown
 │   │   ├── ChatInput.tsx            # Send composer
@@ -208,6 +210,7 @@ The-Intelligent-Bistro/
 
 - A 75% bottom-sheet chat with drag-to-dismiss and reliable keyboard handling on both iOS and Android
 - A `+` button on every menu card for one-tap add (or open customize for items with modifiers)
+- A menu item detail sheet (tap a card body) with a larger image, ingredients, and a four-column nutrition row — calories, protein, carbs, fiber
 - Customizable items with modifier groups (e.g. spice level for the chicken sandwich)
 - Cart with line-item images, quantity controls, and a primary "Place order" button
 - Suggestion chips driven by the AI's response
@@ -216,15 +219,14 @@ The-Intelligent-Bistro/
 ### What we cut
 
 - **Web view (`expo start --web`).** The assessment is mobile-first and a half-working web build would be worse than no web build. We left the door open in the stack but did not certify it.
-- **A separate item-detail view.** The menu card already shows the item image, name, description, and price, so a dedicated detail screen would duplicate what's already on the card. The customize sheet covers the "more info + modify" case.
 - **A real checkout flow.** "Place order" surfaces a friendly placeholder alert and clears the cart. Wiring an actual payment integration is out of scope for an MVP that's primarily evaluating the AI-driven cart logic.
 - **Persistent storage.** The cart and chat history live in memory. A refresh resets state. Production would back this with AsyncStorage or a backend session.
 
 ### Why some specific choices
 
-- **Zustand over Redux / Context.** Cart state needed to be readable from many places (menu, chat, cart, customize) without prop drilling. Zustand's `getState()` outside React makes it easy for the chat `applyAction` loop to mutate the cart in response to AI tool calls without going through the component tree.
+- **Zustand over Redux / Context.** Cart state needed to be readable from many places (menu, chat, cart, customize, detail) without prop drilling. Zustand's `getState()` outside React makes it easy for the chat `applyAction` loop to mutate the cart in response to AI tool calls without going through the component tree.
 - **NativeWind over Tamagui.** Tailwind utility classes are faster to iterate on for someone new to the project. We use a small set of theme tokens for color consistency and lean on Tailwind for everything else.
-- **`transparentModal` route over `@gorhom/bottom-sheet`.** We attempted the bottom-sheet library first; on this stack it failed to present reliably. We pivoted to a transparent-modal route that renders a 75%-height sheet with manual drag-to-dismiss via `react-native-gesture-handler` + `react-native-reanimated`. The result is simpler, has fewer moving parts, and works in both Expo Go and a future dev build.
+- **`transparentModal` route over `@gorhom/bottom-sheet`.** We attempted the bottom-sheet library first; on this stack it failed to present reliably. We pivoted to a transparent-modal route that renders a 75%-height sheet with manual drag-to-dismiss via `react-native-gesture-handler` + `react-native-reanimated`. The same pattern now powers both the chat sheet and the item detail sheet — simpler, fewer moving parts, and works in both Expo Go and a future dev build.
 - **`useAnimatedKeyboard` over `Keyboard.addListener`.** Android keyboard handling on MIUI was unreliable through React Native's JS `Keyboard` events — the height reported by `keyboardDidShow` didn't match the actual IME inset. Switching to reanimated's `useAnimatedKeyboard` hook (which binds to native `WindowInsetsAnimation.Callback` on Android and UIKit notifications on iOS) gave a single code path that works on both platforms.
 
 ---
@@ -237,7 +239,7 @@ Per the assessment brief, AI tools were used heavily during development. They we
 | --- | --- |
 | **Claude.ai (browser chat)** | Planning, system prompt iteration, multi-step debugging, README drafting. Anywhere a long back-and-forth with a thinking partner was more valuable than direct editing. |
 | **Cursor** | Day-to-day editing: writing components, scaffolding files, smaller refactors. Cursor's inline suggestions and chat-with-codebase were the default loop for "I know what I want to change, write it for me." |
-| **Claude Code** | Larger or riskier edits: the chat-sheet rebuild, the keyboard-handling escape hatch, the menu card `+` button. Claude Code's ability to read multiple files and reason across them was useful when a change touched more than one component. |
+| **Claude Code** | Larger or riskier edits: the chat-sheet rebuild, the keyboard-handling escape hatch, the menu card `+` button, the item detail sheet. Claude Code's ability to read multiple files and reason across them was useful when a change touched more than one component. |
 
 Two patterns that emerged:
 
