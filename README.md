@@ -8,9 +8,15 @@ Customers can browse the menu, tap items into the cart, or talk to **Remy**, an 
 
 ## Demo
 
-| Loom walkthrough | Screenshots |
-| --- | --- |
-| *Link to be added with submission* | See `/docs/screenshots/` |
+*Loom walkthrough: link to be added with submission.*
+
+<p align="center">
+  <img src="docs/screenshots/menu.jpeg" width="240" alt="Menu screen" />
+  <img src="docs/screenshots/item-detail.jpeg" width="240" alt="Item detail sheet" />
+  <img src="docs/screenshots/chat.jpeg" width="240" alt="Chat with Remy" />
+</p>
+
+More screenshots: [`docs/screenshots/`](docs/screenshots/).
 
 ---
 
