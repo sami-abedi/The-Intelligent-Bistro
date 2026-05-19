@@ -143,10 +143,6 @@ export default function ItemDetailScreen() {
                 {item.name}
               </Text>
 
-              <Text className="text-base text-muted px-5 pt-2">
-                {item.description}
-              </Text>
-
               <Text className="text-xs uppercase tracking-wider text-muted px-5 pt-4">
                 Ingredients
               </Text>
