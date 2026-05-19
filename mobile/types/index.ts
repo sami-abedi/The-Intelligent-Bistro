@@ -22,6 +22,11 @@ export interface MenuItem {
   category: Category;
   imageUrl: string;
   modifierGroups: ModifierGroup[];
+  calories: number;
+  protein: number;
+  carbs: number;
+  fiber: number;
+  ingredients: string[];
 }
 
 export interface CartItemModifier {

@@ -1,5 +1,6 @@
 // components/MenuItemCard.tsx
 import { View, Text, Image, Pressable } from 'react-native';
+import { useRouter } from 'expo-router';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -13,14 +14,21 @@ interface Props {
 }
 
 export function MenuItemCard({ item, onPress }: Props) {
+  const router = useRouter();
   const scale = useSharedValue(1);
 
   const animatedAddButtonStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
   }));
 
+  const openDetail = () => {
+    router.push({ pathname: '/item-detail', params: { itemId: item.id } });
+  };
+
   return (
-    <View
+    <Pressable
+      onPress={openDetail}
+      android_ripple={null}
       className="mb-4 flex-row overflow-hidden rounded-2xl bg-white"
       style={{
         shadowColor: '#000',
@@ -93,6 +101,6 @@ export function MenuItemCard({ item, onPress }: Props) {
           </Text>
         </Pressable>
       </Animated.View>
-    </View>
+    </Pressable>
   );
 }

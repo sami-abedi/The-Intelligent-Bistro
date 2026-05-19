@@ -38,6 +38,14 @@ export default function RootLayout() {
                 contentStyle: { backgroundColor: 'transparent' },
               }}
             />
+            <Stack.Screen
+              name="item-detail"
+              options={{
+                presentation: 'transparentModal',
+                animation: 'slide_from_bottom',
+                contentStyle: { backgroundColor: 'transparent' },
+              }}
+            />
           </Stack>
         </QueryClientProvider>
       </SafeAreaProvider>
