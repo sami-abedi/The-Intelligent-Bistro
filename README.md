@@ -8,7 +8,7 @@ Customers can browse the menu, tap items into the cart, or talk to **Remy**, an 
 
 ## Demo
 
-*Loom walkthrough: link to be added with submission.*
+*Loom walkthrough: [link to be added with submission.*](https://www.loom.com/share/39077188b7b84f41b07468dc2685e2fe)
 
 <p align="center">
   <img src="docs/screenshots/menu.jpeg" width="240" alt="Menu screen" />
