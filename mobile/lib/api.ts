@@ -39,3 +39,35 @@ export async function sendChat(
   if (!res.ok) throw new Error(`Chat request failed: ${res.status}`);
   return res.json();
 }
+
+export interface OrderConfirmation {
+  order: {
+    id: string;
+    customerName: string;
+    subtotal: number;
+    tax: number;
+    total: number;
+    status: string;
+    createdAt: string;
+  };
+  token: string;
+  estimatedMinutes: number;
+}
+
+export async function placeOrder(
+  items: CartItem[],
+  customerName = 'Guest',
+  notes?: string
+): Promise<OrderConfirmation> {
+  const res = await fetch(`${API_BASE_URL}/orders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items, customerName, ...(notes ? { notes } : {}) }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data?.error ?? `Order request failed: ${res.status}`);
+  }
+  return data as OrderConfirmation;
+}

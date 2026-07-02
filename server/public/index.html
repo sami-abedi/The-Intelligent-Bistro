@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bistro Lumière</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand">
+        <h1>Bistro Lumière</h1>
+        <p class="tagline">Ask Remy, our host — or browse the menu yourself.</p>
+      </div>
+      <button id="cart-button" class="cart-button" aria-label="Open cart">
+        <span>Cart</span>
+        <span id="cart-count" class="cart-count" hidden>0</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="main">
+    <nav id="category-chips" class="chips" aria-label="Menu categories"></nav>
+    <section id="menu-grid" class="menu-grid" aria-live="polite"></section>
+  </main>
+
+  <!-- Item detail / customize modal -->
+  <div id="item-modal" class="overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="item-modal-title">
+      <button class="close-button" data-close="item-modal" aria-label="Close">&times;</button>
+      <div id="item-modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Cart drawer -->
+  <div id="cart-overlay" class="overlay" hidden>
+    <aside class="drawer" role="dialog" aria-modal="true" aria-label="Your order">
+      <div class="drawer-header">
+        <h2>Your Order</h2>
+        <button class="close-button" data-close="cart-overlay" aria-label="Close">&times;</button>
+      </div>
+      <div id="cart-body" class="drawer-body"></div>
+    </aside>
+  </div>
+
+  <!-- Chat panel -->
+  <button id="chat-fab" class="chat-fab" aria-label="Chat with Remy">Ask Remy</button>
+  <div id="chat-panel" class="chat-panel" hidden>
+    <div class="chat-header">
+      <div>
+        <h2>Remy</h2>
+        <p class="chat-subtitle">Your host at Bistro Lumière</p>
+      </div>
+      <button class="close-button" data-close="chat-panel" aria-label="Close chat">&times;</button>
+    </div>
+    <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
+    <div id="chat-suggestions" class="chat-suggestions"></div>
+    <form id="chat-form" class="chat-form">
+      <input
+        id="chat-input"
+        type="text"
+        placeholder="I'd like two spicy chicken sandwiches…"
+        autocomplete="off"
+        maxlength="1000"
+      />
+      <button type="submit" id="chat-send">Send</button>
+    </form>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

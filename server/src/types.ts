@@ -58,3 +58,40 @@ export interface ChatResponse {
   actions: CartAction[];
   suggestions: string[];
 }
+
+export type OrderStatus = 'received' | 'preparing' | 'ready' | 'completed';
+
+export type Payment =
+  | { status: 'unpaid'; method: 'pay-at-pickup' }
+  | { status: 'paid'; method: 'card-demo'; last4: string; paidAt: string };
+
+export interface OrderLineModifier {
+  groupId: string;
+  optionId: string;
+  name: string;
+  priceDelta: number;
+}
+
+export interface OrderLine {
+  menuItemId: string;
+  name: string;
+  quantity: number;
+  modifiers: OrderLineModifier[];
+  unitPrice: number;
+  lineTotal: number;
+}
+
+export interface Order {
+  id: string;
+  /** SHA-256 of the retrieval token. The raw token is only returned once, at creation. */
+  tokenHash: string;
+  customerName: string;
+  notes?: string;
+  lines: OrderLine[];
+  subtotal: number;
+  tax: number;
+  total: number;
+  status: OrderStatus;
+  payment: Payment;
+  createdAt: string;
+}

@@ -168,13 +168,18 @@ function parseReplyAndSuggestions(rawReply: string): { reply: string; suggestion
   return { reply, suggestions };
 }
 
+// Only the most recent messages are forwarded to Claude — the cart is
+// re-embedded in the system prompt each turn, so old history adds cost
+// without adding much signal.
+const HISTORY_WINDOW = 20;
+
 export async function handleChat(
   message: string,
   cart: CartItem[],
   history: ChatMessage[]
 ): Promise<ChatResponse> {
   const messages: Anthropic.MessageParam[] = [
-    ...history.map((m) => ({ role: m.role, content: m.content })),
+    ...history.slice(-HISTORY_WINDOW).map((m) => ({ role: m.role, content: m.content })),
     { role: 'user', content: message },
   ];
 

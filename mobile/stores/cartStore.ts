@@ -1,6 +1,8 @@
 // stores/cartStore.ts
 import 'react-native-get-random-values'; // must be imported before uuid on RN
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { v4 as uuidv4 } from 'uuid';
 import { CartItem, CartItemModifier, MenuItem, CartAction } from '../types';
 
@@ -24,7 +26,9 @@ function modifiersMatch(a: CartItemModifier[], b: CartItemModifier[]): boolean {
   return aSorted === bSorted;
 }
 
-export const useCartStore = create<CartState>((set, get) => ({
+export const useCartStore = create<CartState>()(
+  persist(
+    (set, get) => ({
   items: [],
 
   addItem: (menuItem, quantity, modifiers) => {
@@ -112,4 +116,13 @@ export const useCartStore = create<CartState>((set, get) => ({
       return total + lineTotal * ci.quantity;
     }, 0);
   },
-}));
+    }),
+    {
+      name: 'bistro-cart',
+      storage: createJSONStorage(() => AsyncStorage),
+      // Only the line items are state worth keeping; everything else on the
+      // store is derived or a function.
+      partialize: (state) => ({ items: state.items }),
+    }
+  )
+);

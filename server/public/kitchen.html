@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex" />
+  <title>Kitchen — Bistro Lumière</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand">
+        <h1>Kitchen</h1>
+        <p class="tagline">Bistro Lumière — live orders</p>
+      </div>
+      <button id="lock-button" class="cart-button" hidden>Lock</button>
+    </div>
+  </header>
+
+  <main class="main">
+    <div id="kitchen-login" class="kitchen-login" hidden>
+      <h2>Kitchen access</h2>
+      <p class="modal-desc">Enter the admin key (ADMIN_KEY from the server's .env).</p>
+      <input id="admin-key-input" class="text-input" type="password" placeholder="Admin key" autocomplete="off" />
+      <p id="login-error" class="error-text" hidden></p>
+      <button id="unlock-button" class="primary-button">Open kitchen view</button>
+    </div>
+
+    <div id="kitchen-main" hidden>
+      <div class="kitchen-toolbar">
+        <p class="tagline">Auto-refreshes every 5 seconds. Newest orders first.</p>
+        <span id="order-count" class="tagline"></span>
+      </div>
+      <div id="kitchen-grid" class="kitchen-grid" aria-live="polite"></div>
+    </div>
+  </main>
+
+  <script src="/kitchen.js"></script>
+</body>
+</html>

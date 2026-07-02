@@ -1,9 +1,10 @@
 // app/cart.tsx
+import { useState } from 'react';
 import { View, Text, Pressable, FlatList, Image, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
-import { fetchMenu } from '../lib/api';
+import { fetchMenu, placeOrder } from '../lib/api';
 import { useCartStore } from '../stores/cartStore';
 import { CartItem, MenuItem } from '../types';
 
@@ -101,20 +102,36 @@ export default function CartScreen() {
 
   const total = menu ? subtotal(menu) : 0;
 
-  const handlePlaceOrder = () => {
-    Alert.alert(
-      'Order placed!',
-      "Just kidding — checkout isn't part of this demo. Your cart will be cleared so you can keep exploring.",
-      [
-        {
-          text: 'OK',
-          onPress: () => {
-            clear();
-            router.back();
+  const [placing, setPlacing] = useState(false);
+
+  const handlePlaceOrder = async () => {
+    if (placing || items.length === 0) return;
+    setPlacing(true);
+    try {
+      const confirmation = await placeOrder(items);
+      Alert.alert(
+        'Merci! Order received.',
+        `Order ${confirmation.order.id}\nTotal ${`$${confirmation.order.total.toFixed(2)}`} ` +
+          `(incl. $${confirmation.order.tax.toFixed(2)} tax)\n` +
+          `Ready in about ${confirmation.estimatedMinutes} minutes.`,
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              clear();
+              router.back();
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+    } catch (err) {
+      Alert.alert(
+        'Order failed',
+        err instanceof Error ? err.message : 'Please try again in a moment.'
+      );
+    } finally {
+      setPlacing(false);
+    }
   };
 
   return (
@@ -157,6 +174,7 @@ export default function CartScreen() {
             </View>
             <Pressable
               onPress={handlePlaceOrder}
+              disabled={placing}
               className="items-center rounded-2xl bg-terracotta px-5 py-4"
               style={{
                 shadowColor: '#000',
@@ -164,9 +182,12 @@ export default function CartScreen() {
                 shadowRadius: 6,
                 shadowOffset: { width: 0, height: 2 },
                 elevation: 4,
+                opacity: placing ? 0.6 : 1,
               }}
             >
-              <Text className="font-semibold text-cream">Place order</Text>
+              <Text className="font-semibold text-cream">
+                {placing ? 'Placing order…' : 'Place order'}
+              </Text>
             </Pressable>
           </View>
         </>

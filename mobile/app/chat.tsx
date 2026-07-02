@@ -77,9 +77,11 @@ export default function ChatScreen() {
   const messages = useChatStore((s) => s.messages);
   const isThinking = useChatStore((s) => s.isThinking);
   const lastSuggestions = useChatStore((s) => s.lastSuggestions);
+  const retryText = useChatStore((s) => s.retryText);
   const addMessage = useChatStore((s) => s.addMessage);
   const setThinking = useChatStore((s) => s.setThinking);
   const setLastSuggestions = useChatStore((s) => s.setLastSuggestions);
+  const setRetryText = useChatStore((s) => s.setRetryText);
 
   const cart = useCartStore((s) => s.items);
   const applyAction = useCartStore((s) => s.applyAction);
@@ -145,17 +147,21 @@ export default function ChatScreen() {
     }
   }, [messages.length, isThinking]);
 
-  const handleSend = async (text: string) => {
+  const handleSend = async (text: string, opts?: { isRetry?: boolean }) => {
+    const isRetry = opts?.isRetry ?? false;
     setLastSuggestions([]);
-    addMessage('user', text);
+    setRetryText(null);
+
+    // History must not include this turn's message — the server appends it
+    // itself. On retry the transcript already ends with [failed user message,
+    // apology], so drop both from history and don't re-add the bubble.
+    const prior = useChatStore.getState().messages;
+    const history = isRetry ? prior.slice(0, -2) : prior;
+    if (!isRetry) addMessage('user', text);
     setThinking(true);
 
     try {
-      const response = await sendChat(
-        text,
-        cart,
-        useChatStore.getState().messages
-      );
+      const response = await sendChat(text, cart, history);
 
       for (const action of response.actions) {
         applyAction(action, menu);
@@ -167,10 +173,13 @@ export default function ChatScreen() {
 
       setLastSuggestions(response.suggestions ?? []);
     } catch (err) {
-      addMessage(
-        'assistant',
-        "Sorry — I couldn't reach the kitchen just now. Try again in a moment?"
-      );
+      if (!isRetry) {
+        addMessage(
+          'assistant',
+          "Sorry — I couldn't reach the kitchen just now. Try again in a moment?"
+        );
+      }
+      setRetryText(text);
     } finally {
       setThinking(false);
     }
@@ -297,8 +306,8 @@ export default function ChatScreen() {
           />
         )}
 
-        {/* Suggestion chips */}
-        {lastSuggestions.length > 0 && !isThinking && (
+        {/* Suggestion chips (plus a retry chip after a failed send) */}
+        {(lastSuggestions.length > 0 || retryText !== null) && !isThinking && (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -312,6 +321,26 @@ export default function ChatScreen() {
             }}
             style={{ flexGrow: 0 }}
           >
+            {retryText !== null && (
+              <Pressable
+                onPress={() => handleSend(retryText, { isRetry: true })}
+                style={{
+                  height: 40,
+                  paddingHorizontal: 14,
+                  borderRadius: 999,
+                  backgroundColor: '#C65D3F',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+              >
+                <Text
+                  numberOfLines={1}
+                  style={{ fontSize: 13, color: '#FAF7F2', fontWeight: '600' }}
+                >
+                  ↻ Try again
+                </Text>
+              </Pressable>
+            )}
             {lastSuggestions.map((suggestion) => (
               <Pressable
                 key={suggestion}

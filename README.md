@@ -1,6 +1,6 @@
 # The Intelligent Bistro
 
-A mobile restaurant ordering experience where a conversational AI handles the cart. Built with React Native (Expo) and a Node.js backend that uses the Anthropic Claude API with structured tool use.
+A restaurant ordering experience where a conversational AI handles the cart — on mobile **and** on the web. Built with React Native (Expo), a browser SPA, and a Node.js backend that uses the Anthropic Claude API with structured tool use.
 
 Customers can browse the menu, tap items into the cart, or talk to **Remy**, an in-app AI host who interprets natural language ("I'd like two spicy chicken sandwiches, one mild and one extra spicy") and applies the corresponding cart actions. The cart is always editable from both sides — taps and speech stay in sync against a single Zustand store.
 
@@ -29,7 +29,9 @@ More screenshots: [`docs/screenshots/`](docs/screenshots/).
 | State | Zustand | One cart store, one chat store |
 | Server data | TanStack Query | Used for `/menu` fetching with caching |
 | Animations | `react-native-reanimated` v4 + `react-native-gesture-handler` | Drag-to-dismiss, scale-on-press, animated chat and detail sheets |
-| Backend | Node.js + Express + TypeScript | Single process, two routes |
+| Web | Vanilla JS SPA served by the backend | Same-origin, no build step, XSS-safe DOM rendering |
+| Backend | Node.js + Express + TypeScript | Single process: menu, chat, orders, static web app |
+| Security | helmet, express-rate-limit, zod | CSP, rate limits, strict input validation, hashed order tokens |
 | AI | Anthropic Claude API with **tool use** | Four tools modeling the cart |
 | Markdown rendering | `react-native-markdown-display` | For Remy's replies |
 
@@ -150,6 +152,18 @@ You should see:
 Bistro server running on http://localhost:3000
 ```
 
+### 3b. Open the web app
+
+The backend serves a full browser version of the bistro at the same address:
+
+```
+http://localhost:3000
+```
+
+Menu, item detail with nutrition, customization, cart, chat with Remy, and a real checkout with a demo payment step — all in the browser, no extra build step. It talks to the same `/menu`, `/chat`, and `/orders` endpoints as the mobile app.
+
+The staff-side kitchen view lives at `http://localhost:3000/kitchen.html` — it asks for the `ADMIN_KEY` from `server/.env`, lists live orders, and lets you advance each order's status (which customers see update in real time on their confirmation screen).
+
 ### 4. Run the mobile app
 
 In a separate terminal:
@@ -175,10 +189,17 @@ Scan the QR code with Expo Go (Android) or the Camera app (iOS).
 The-Intelligent-Bistro/
 ├── server/                          # Node.js + Express backend
 │   ├── src/
-│   │   ├── index.ts                 # Express app, /menu and /chat routes
+│   │   ├── index.ts                 # Express app: security middleware, /menu /chat /orders, static web app
 │   │   ├── chat.ts                  # Claude tool-use loop, system prompt
+│   │   ├── orders.ts                # Order creation, server-side pricing, persistence, token auth
+│   │   ├── validation.ts            # Zod schemas for every request body
 │   │   ├── menu.ts                  # Static menu data (with calories, ingredients, macros)
 │   │   └── types.ts                 # Shared types
+│   ├── public/                      # Web app (vanilla JS SPA, served same-origin)
+│   │   ├── index.html
+│   │   ├── styles.css
+│   │   └── app.js                   # Menu, cart, chat, checkout — DOM-API rendering only
+│   ├── data/                        # orders.json (gitignored, created at runtime)
 │   ├── .env.example
 │   └── package.json
 │
@@ -221,12 +242,30 @@ The-Intelligent-Bistro/
 - Cart with line-item images, quantity controls, and a primary "Place order" button
 - Suggestion chips driven by the AI's response
 - Three-dot "thinking" indicator while Claude is generating
+- A full web version of the app (menu, customize, cart, chat, checkout) served same-origin by the backend
+- A real order flow: `POST /orders` prices the cart server-side, persists it, and returns an order id + retrieval token; both clients use it
+- A demo payment step (`POST /orders/:id/pay`): card form on web checkout, or "pay at pickup" — the processor is a stub that accepts only the test card `4242 4242 4242 4242` and stores just the last four digits, shaped so a real Stripe-style provider can drop in
+- A kitchen view at `/kitchen.html`: staff enter the `ADMIN_KEY`, see live orders (auto-refresh, payment badges), and advance status `received → preparing → ready → completed`; the customer's confirmation screen polls and updates in real time
+- Chat retry on both clients: a failed send offers a "↻ Try again" chip instead of a dead end
+- Cart persistence on both clients: localStorage on web, AsyncStorage on mobile
+
+### Security
+
+- **Server-side pricing.** Clients send item ids and quantities only. Prices, modifier deltas, tax, and totals are computed from the canonical menu on the server — a tampered client cannot set its own prices, and unknown items, invalid modifiers, or missing required modifiers reject the order.
+- **Strict input validation.** Every request body is parsed with `zod` (`server/src/validation.ts`): strict shapes (unknown fields rejected), capped string lengths, capped quantities (≤20), capped cart size (≤30 lines), capped history (≤40 messages, server forwards only the last 20 to Claude).
+- **Order tokens.** Each order gets a random 192-bit retrieval token returned exactly once; only its SHA-256 hash is stored, and lookups compare hashes with `crypto.timingSafeEqual`. "Wrong token" and "no such order" return the same 404.
+- **Rate limiting.** Global 300 req/15 min, `/chat` 20 req/min, `/orders` 10 req/min per IP — the chat route fronts a paid API, so this also bounds spend.
+- **helmet + CSP.** Strict Content-Security-Policy (`script-src 'self'`, no inline scripts), `frame-ancestors 'none'`, and the rest of helmet's headers.
+- **Origin policy.** Same-origin and no-Origin (native mobile) requests are allowed; any other browser origin must be allowlisted via `ALLOWED_ORIGINS`.
+- **XSS-safe web rendering.** The web app renders exclusively through DOM APIs (`createElement`/`textContent`). Remy's markdown passes through a tiny renderer that emits text/`strong`/`em` nodes — model output is never injected as HTML.
+- **No leaked internals.** JSON bodies capped at 100 KB, `x-powered-by` disabled, generic error messages, and the server refuses to boot without `ANTHROPIC_API_KEY` instead of failing at request time.
+- **Admin API auth.** Kitchen endpoints require the `ADMIN_KEY` via `x-admin-key` header, compared timing-safe; if the env var is unset the admin API is disabled rather than defaulting open. The kitchen page keeps the key in sessionStorage only.
+- **No card data at rest.** The demo payment processor never persists or logs a card number — only the last four digits land in the order record. (It's a stub: only the universal test card is accepted, no real money moves.)
 
 ### What we cut
 
-- **Web view (`expo start --web`).** The assessment is mobile-first and a half-working web build would be worse than no web build. We left the door open in the stack but did not certify it.
-- **A real checkout flow.** "Place order" surfaces a friendly placeholder alert and clears the cart. Wiring an actual payment integration is out of scope for an MVP that's primarily evaluating the AI-driven cart logic.
-- **Persistent storage.** The cart and chat history live in memory. A refresh resets state. Production would back this with AsyncStorage or a backend session.
+- **A real payment provider.** The payment endpoint and checkout UI are live, but the processor is a demo stub. Swapping in Stripe/Adyen means replacing `processDemoCard()` in `server/src/orders.ts` with an API call (and ideally tokenizing on the client so card numbers never touch this server).
+- **Accounts.** Orders are retrievable by id + token rather than tied to a user account; good enough for pickup ordering, and it keeps the server free of password handling.
 
 ### Why some specific choices
 
@@ -258,12 +297,11 @@ Approximate split of code authorship: ~80% AI-generated, ~20% hand-written or ha
 
 ## Known limitations & next steps
 
-- **Cart is in-memory.** No persistence across app restarts. Adding AsyncStorage to the cart store would take <30 minutes and is the obvious next step.
-- **Conversation history is unbounded.** Every `/chat` request sends the full prior conversation, which will become expensive on long sessions. Production would summarize or window older messages.
-- **No retry logic on `/chat` failures.** If the request fails, the chat surfaces a generic error. A real implementation would distinguish network errors from model errors and offer a retry.
+- **Payments are a demo stub.** The flow (create → pay → paid badge in the kitchen) is real, but no actual charge happens. Next step: Stripe with client-side tokenization.
+- **Mobile has no payment step.** Mobile orders are placed as pay-at-pickup; the card form currently exists on web only.
+- **Kitchen auth is a shared key.** Fine for a single-restaurant demo; a multi-user staff system would want real accounts and roles.
 - **The system prompt is hand-tuned.** It works well for the menu and tool set used here, but it isn't evaluation-driven. A more rigorous version would maintain a small suite of conversation tests (`"two sandwiches, one spicy"`, `"actually remove the water"`, ambiguous requests, off-menu items) and run them on every prompt change.
 - **No accessibility audit.** Color contrast was chosen for aesthetics; it has not been verified against WCAG, and screen-reader labels are sparse.
-- **Place order is a placeholder.** A real version would integrate a payment provider and handle order state on the backend.
 
 ---
 
